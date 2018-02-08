@@ -47,14 +47,30 @@ public class FragmentedIpBuffer extends JBuffer implements Comparable<Fragmented
     
     public void addSegment(JBuffer packet, int offset, int length, int packetOffset) {
         this.bytesCopiedIntoBuffer += length;
-        packet.transferTo(this, packetOffset, length, offset + this.start);
+        try {
+            packet.transferTo(this, packetOffset, length, offset + this.start);
+        }
+        catch (IndexOutOfBoundsException e) {
+            System.err.println("Out of  bound");
+            e.printStackTrace();
+            System.err.println(packetOffset + "," + length + "," + offset + "," + this.bytesCopiedIntoBuffer + "," + this.size());
+            System.err.println(packet.toString());
+            System.exit(-1);
+        }
     }
     
     public void addLastSegment(JBuffer packet, int offset, int length, int packetOffset) {
         this.addSegment(packet, offset, length, packetOffset);
         this.ipDatagramLength = this.start + offset + length;
+        try {
+            super.setSize(this.ipDatagramLength);
+        }
+        catch(IllegalArgumentException e) {
+            System.err.println("Illegal");
+            System.err.println(packet.toString());
+            System.exit(-1);
+        }
         
-        super.setSize(this.ipDatagramLength);
         
         this.header.length(ipDatagramLength);
     }

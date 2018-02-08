@@ -5,12 +5,18 @@
  */
 package networktrafficreader;
 
-import org.jnetpcap.nio.JBuffer;
-
 /**
  *
  * @author baskoro
  */
-public interface IpReassemblyBufferHandler {
-    public void nextIpDatagram(JBuffer buffer);
+public enum TcpState {
+    SYN_SENT,
+    SYN_RCVD,
+    ESTABLISHED,
+    FIN_WAIT_1,
+    FIN_WAIT_2,
+    TIME_WAIT,
+    CLOSE_WAIT,
+    LAST_ACK,
+    TIMEOUT
 }

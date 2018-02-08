@@ -9,7 +9,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.jnetpcap.*;
+import org.jnetpcap.nio.JBuffer;
 import org.jnetpcap.packet.PcapPacket;
 import org.jnetpcap.packet.PcapPacketHandler;
 import org.jnetpcap.protocol.network.Ip4;
@@ -19,14 +22,7 @@ import org.jnetpcap.protocol.network.Ip4;
  * @author baskoro
  */
 public class IpReassembly implements PcapPacketHandler<Object>, Runnable {
-
-    /**
-     * @param done the done to set
-     */
-    public void setDone(boolean done) {
-        this.done = done;
-    }
-    private static final int DEFAULT_REASSEMBLY_SIZE = 8 * 1024; // 8k
+    private static final int DEFAULT_REASSEMBLY_SIZE = 32 * 1024; // 8k
     private Ip4 ip4 = new Ip4();
     private Map<Integer, FragmentedIpBuffer> buffers = new HashMap<Integer, FragmentedIpBuffer>();
     private IpReassemblyBufferHandler handler;
@@ -46,10 +42,14 @@ public class IpReassembly implements PcapPacketHandler<Object>, Runnable {
     @Override
     public void nextPacket(PcapPacket packet, Object user) {
         if(packet.hasHeader(this.ip4)) {
-            final int flags = this.ip4.flags();
+            Ip4 ip4 = packet.getHeader(this.ip4);
+            final int flags = ip4.flags();
             
+            if((flags & Ip4.FLAG_MORE_FRAGMENTS) == 0 && ip4.offset() == 0) {
+                this.dispatch(packet);
+            }
             // Fragmented packet
-            if((flags & Ip4.FLAG_MORE_FRAGMENTS) != 0) {
+            else if((flags & Ip4.FLAG_MORE_FRAGMENTS) != 0) {
                 this.bufferFragment(packet, ip4);
             }
             // last packet or non-fragmented packet
@@ -70,8 +70,8 @@ public class IpReassembly implements PcapPacketHandler<Object>, Runnable {
         return buffer;
     }
     
-    private void dispatch(FragmentedIpBuffer buffer) {
-        this.handler.nextIpDatagram(buffer);
+    private void dispatch(JBuffer buffer) {
+        this.getHandler().nextIpDatagram(buffer);
     }
     
     private FragmentedIpBuffer bufferFragment(PcapPacket packet, Ip4 ip) {
@@ -133,10 +133,40 @@ public class IpReassembly implements PcapPacketHandler<Object>, Runnable {
 
     @Override
     public void run() {
-        while(!this.done) {
+        while(!this.isDone()) {
             this.timeoutBuffers();
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ex) {
+                Logger.getLogger(IpReassembly.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
+
+    /**
+     * @return the done
+     */
+    public boolean isDone() {
+        return done;
+    }
+    
+    /**
+     * @param done the done to set
+     */
+    public void setDone(boolean done) {
+        this.done = done;
+        TransportLayerBufferHandler tlbh = (TransportLayerBufferHandler) this.handler;
+        tlbh.markAllConnectionReady();
+    }
+    
+    /**
+     * @return the handler
+     */
+    public IpReassemblyBufferHandler getHandler() {
+        return handler;
+    }
+
+    
 }
 
 

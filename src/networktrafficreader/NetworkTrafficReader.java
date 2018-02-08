@@ -5,11 +5,18 @@
  */
 package networktrafficreader;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.jnetpcap.Pcap;
 import org.jnetpcap.nio.JMemory;
 import org.jnetpcap.packet.JMemoryPacket;
 import org.jnetpcap.packet.JPacket;
+import org.jnetpcap.packet.JRegistry;
+import org.jnetpcap.protocol.JProtocol;
+import static org.jnetpcap.protocol.JProtocol.SLL;
 import org.jnetpcap.protocol.network.Ip4;
+import org.jnetpcap.protocol.tcpip.Http;
+import org.jnetpcap.protocol.voip.Sip;
 
 /**
  *
@@ -17,42 +24,43 @@ import org.jnetpcap.protocol.network.Ip4;
  */
 public class NetworkTrafficReader {
 
+    public static void unbindProtocols() {
+        JRegistry.resetBindings(SLL.getId());
+        JRegistry.resetBindings(Http.ID);
+        JRegistry.resetBindings(Sip.ID);
+        JPacket.getDefaultScanner().reloadAll();
+    }    
+    
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) {
-        StringBuilder errbuf = new StringBuilder();
-        Pcap pcap = Pcap.openOffline("/media/baskoro/HD-LXU3/Datasets/UNSW/UNSW-NB15-Source-Files/UNSW-NB15-pcap-files/pcaps-22-1-2015/normal/training-port-80.pcap", errbuf);
-        if(pcap == null) {
-            System.err.println(errbuf.toString());
-            return;
-        }
-        
-        IpReassembly ipReassembly = new IpReassembly(5 * 1000, new IpReassemblyBufferHandler() {
-            @Override
-            public void nextIpDatagram(FragmentedIpBuffer buffer) {
-                if (buffer.isComplete() == false) {
-                    System.err.println("Warning: missing fragments");
-                }
-                else {
-                    JPacket packet = new JMemoryPacket(JMemory.Type.POINTER);
-                    packet.peer(buffer);
-                    packet.getCaptureHeader().wirelen(buffer.size());
-                    packet.getCaptureHeader().caplen(buffer.size());
-                    
-                    packet.scan(Ip4.ID);
-                    
-                    Ip4 ip = packet.getHeader(new Ip4());
-                    ip.checksum(ip.calculateChecksum());
-                    
-                    System.out.println(packet.toString());
-                }
+        try {
+            StringBuilder errbuf = new StringBuilder();
+            Pcap pcap = Pcap.openOffline("/media/baskoro/HD-LXU3/Datasets/UNSW/UNSW-NB15-Source-Files/UNSW-NB15-pcap-files/pcaps-22-1-2015/attack/22-1-2017-Exploits.pcap", errbuf);
+            if(pcap == null) {
+                System.err.println(errbuf.toString());
+                return;
             }
-        });
-        
-        pcap.loop(100, ipReassembly, null);
-        System.out.println("Done!");
-        ipReassembly.setDone(true);
+            
+            NetworkTrafficReader.unbindProtocols();
+            
+            IpReassembly ipReassembly = new IpReassembly(5 * 1000, new TransportLayerBufferHandler(5000, true));
+            Thread t = new Thread(ipReassembly);
+            t.start();
+            
+            MessagePoper poper = new MessagePoper(ipReassembly);
+            poper.start();
+            
+            pcap.loop(-1, ipReassembly, null);
+            Thread.sleep(100);
+            ipReassembly.setDone(true);
+            t.join();
+            poper.join();
+            System.out.println("Done!");
+        } catch (InterruptedException ex) {
+            Logger.getLogger(NetworkTrafficReader.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
     
 }
