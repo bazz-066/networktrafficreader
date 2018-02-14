@@ -13,19 +13,26 @@ import java.util.logging.Logger;
  * @author baskoro
  */
 public class MessagePoper extends Thread {
-    private IpReassembly ipReassembly;
+    private IpV4Handler ipv4Handler;
 
-    public MessagePoper(IpReassembly ipReassembly) {
-        this.ipReassembly = ipReassembly;
+    public MessagePoper(IpV4Handler ipv4Handler) {
+        this.ipv4Handler = ipv4Handler;
     }
 
     public void run() {
         long counter = 0;
-        TransportLayerBufferHandler tblh = (TransportLayerBufferHandler) this.ipReassembly.getHandler();
-        while(!this.ipReassembly.isDone() || tblh.hasReadyConnection()) {
+        TransportLayerBufferHandler tblh = (TransportLayerBufferHandler) this.ipv4Handler.getTransportLayerHandler();
+        while(!this.ipv4Handler.isDone()) {
             if(tblh.hasReadyConnection()) {
                 TcpBuffer tcpBuffer = tblh.popReadyConnection();
                 counter++;
+                if(tcpBuffer == null) {
+                    System.out.println("NULL," + counter);
+                }
+                else {
+                    System.out.println("Connection: " + counter);
+                    //System.out.println(tcpBuffer.getTcpTuple());
+                }
                 //System.out.println("Num of connections: " + counter);
                 //System.out.println("payload: " + tcpBuffer.getTcpPayload(true));
                 //System.out.println("payload: " + tcpBuffer.getTcpPayload(false));
@@ -35,12 +42,13 @@ public class MessagePoper extends Thread {
             else {
                 try {
                     Thread.sleep(100);
+                    System.out.println("sleep");
                 } catch (InterruptedException ex) {
                     Logger.getLogger(MessagePoper.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
         }
         
-        System.out.println("Num of connections: " + counter);
+        System.out.println("Poper Finished. Num of connections: " + counter);
     }
 }

@@ -7,60 +7,73 @@ package networktrafficreader;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.jnetpcap.Pcap;
-import org.jnetpcap.nio.JMemory;
-import org.jnetpcap.packet.JMemoryPacket;
-import org.jnetpcap.packet.JPacket;
-import org.jnetpcap.packet.JRegistry;
-import org.jnetpcap.protocol.JProtocol;
-import static org.jnetpcap.protocol.JProtocol.SLL;
-import org.jnetpcap.protocol.network.Ip4;
-import org.jnetpcap.protocol.tcpip.Http;
-import org.jnetpcap.protocol.voip.Sip;
+
+import org.pcap4j.core.NotOpenException;
+import org.pcap4j.core.PcapHandle;
+import org.pcap4j.core.PcapNativeException;
+import org.pcap4j.core.Pcaps;
+import org.pcap4j.packet.IpV4Packet;
+import org.pcap4j.packet.Packet;
+import org.pcap4j.packet.TcpPacket;
 
 /**
  *
  * @author baskoro
  */
+@SuppressWarnings("javadoc")
 public class NetworkTrafficReader {
 
-    public static void unbindProtocols() {
-        JRegistry.resetBindings(SLL.getId());
-        JRegistry.resetBindings(Http.ID);
-        JRegistry.resetBindings(Sip.ID);
-        JPacket.getDefaultScanner().reloadAll();
-    }    
-    
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) {
         try {
-            StringBuilder errbuf = new StringBuilder();
-            Pcap pcap = Pcap.openOffline("/media/baskoro/HD-LXU3/Datasets/UNSW/UNSW-NB15-Source-Files/UNSW-NB15-pcap-files/pcaps-22-1-2015/attack/22-1-2017-Exploits.pcap", errbuf);
-            if(pcap == null) {
-                System.err.println(errbuf.toString());
-                return;
-            }
-            
-            NetworkTrafficReader.unbindProtocols();
-            
-            IpReassembly ipReassembly = new IpReassembly(5 * 1000, new TransportLayerBufferHandler(5000, true));
-            Thread t = new Thread(ipReassembly);
-            t.start();
-            
-            MessagePoper poper = new MessagePoper(ipReassembly);
+//            StringBuilder errbuf = new StringBuilder();
+//            Pcap pcap = Pcap.openOffline("/media/baskoro/HD-LXU3/Datasets/UNSW/UNSW-NB15-Source-Files/UNSW-NB15-pcap-files/pcaps-22-1-2015/attack/22-1-2017-Exploits.pcap", errbuf);
+//            if(pcap == null) {
+//                System.err.println(errbuf.toString());
+//                return;
+//            }
+//            
+//            NetworkTrafficReader.unbindProtocols();
+//            
+//            IpReassembly ipReassembly = new IpReassembly(5 * 1000, new TransportLayerBufferHandler(5000, true));
+//            Thread t = new Thread(ipReassembly);
+//            t.start();
+//            
+//            MessagePoper poper = new MessagePoper(ipReassembly);
+//            poper.start();
+//            
+//            pcap.loop(-1, ipReassembly, null);
+//            Thread.sleep(100);
+//            ipReassembly.setDone(true);
+//            t.join();
+//            poper.join();
+//            System.out.println("Done!");
+            PcapHandle pcap = Pcaps.openOffline("/media/baskoro/HD-LXU3/Datasets/UNSW/UNSW-NB15-Source-Files/UNSW-NB15-pcap-files/pcaps-22-1-2015/normal/training-port-80.pcap");
+            //PcapHandle pcap = Pcaps.openOffline("/home/baskoro/Documents/Doctoral/Research/neuralnetwork-java/libs/pcap4j/pcap4j-sample/src/main/resources/flagmentedEcho.pcap");
+            IpV4Handler handler = new IpV4Handler(5000);
+            MessagePoper poper = new MessagePoper(handler);
             poper.start();
-            
-            pcap.loop(-1, ipReassembly, null);
+            Packet packet;
+            int counter = 0;
+            while((packet = pcap.getNextPacket()) != null) {
+                handler.processPacket(packet, pcap.getTimestamp());
+                
+                counter++;
+            }
+            handler.getTransportLayerHandler().cleanupBuffers();
             Thread.sleep(100);
-            ipReassembly.setDone(true);
-            t.join();
-            poper.join();
-            System.out.println("Done!");
+            handler.setDone(true);
+            //packet.get(TcpPacket.TcpHeader);
+            System.out.println("counter: " + counter);
+        } catch (PcapNativeException ex) {
+            Logger.getLogger(NetworkTrafficReader.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (NotOpenException ex) {
+            Logger.getLogger(NetworkTrafficReader.class.getName()).log(Level.SEVERE, null, ex);
         } catch (InterruptedException ex) {
             Logger.getLogger(NetworkTrafficReader.class.getName()).log(Level.SEVERE, null, ex);
-        }
+        } 
     }
     
 }

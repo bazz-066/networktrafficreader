@@ -5,6 +5,7 @@
  */
 package networktrafficreader;
 
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -18,87 +19,55 @@ import org.jnetpcap.packet.PcapPacket;
 import org.jnetpcap.protocol.network.Ip4;
 import org.jnetpcap.protocol.tcpip.Tcp;
 import org.jnetpcap.protocol.tcpip.Udp;
+import org.pcap4j.packet.IpV4Packet;
+import org.pcap4j.packet.TcpPacket;
+import org.pcap4j.packet.UdpPacket;
 
 /**
  *
  * @author baskoro
  */
-public class TransportLayerBufferHandler implements IpReassemblyBufferHandler {
-    private Map<Integer, TcpBuffer> tcpBuffers;
+public class TransportLayerBufferHandler {
+    private Map<Long, TcpBuffer> tcpBuffers;
     private ArrayList<TcpBuffer> readyTcpBuffers;
-    private Tcp tcp = new Tcp();
-    private Udp udp = new Udp();
     private long timeout;
     private long lastPacketTimestamp;
     private boolean deleteReadConnection;
     private int lastReadIndex;
+    private IpV4Handler ipV4Handler;
     
-    public TransportLayerBufferHandler(long timeout, boolean deleteReadConnection) {
-        this.tcpBuffers = new HashMap<Integer, TcpBuffer>();
+    public TransportLayerBufferHandler(long timeout, boolean deleteReadConnection, IpV4Handler ipv4Handler) {
+        this.tcpBuffers = new HashMap<Long, TcpBuffer>();
         this.readyTcpBuffers = new ArrayList<TcpBuffer>();
         this.timeout = timeout;
         this.lastPacketTimestamp = Long.MAX_VALUE;
         this.deleteReadConnection = deleteReadConnection;
         this.lastReadIndex = -1;
+        this.ipV4Handler = ipv4Handler;
     }
     
-    @Override
-    public void nextIpDatagram(JBuffer buffer) {
-        if(buffer instanceof FragmentedIpBuffer) {
-            FragmentedIpBuffer fragmentedIpBuffer = (FragmentedIpBuffer) buffer;
-            if (fragmentedIpBuffer.isComplete() == false) {
-                System.err.println("Warning: missing fragments");
+    public void processPacket(IpV4Packet ipv4Packet, Timestamp captureTimestamp) {
+        this.lastPacketTimestamp = captureTimestamp.getTime();
+        if(ipv4Packet.contains(TcpPacket.class)) {
+            long[] hashes = TcpBuffer.calcHash(ipv4Packet);
+            if(this.tcpBuffers.containsKey(hashes[0])) {
+                this.tcpBuffers.get(hashes[0]).addSegment(ipv4Packet, captureTimestamp);
+            }
+            else if(this.tcpBuffers.containsKey(hashes[1])) {
+                this.tcpBuffers.get(hashes[1]).addSegment(ipv4Packet, captureTimestamp);
             }
             else {
-                try {
-                    JPacket packet = new JMemoryPacket(JMemory.Type.POINTER);
-                    packet.peer(fragmentedIpBuffer);
-                    packet.getCaptureHeader().wirelen(fragmentedIpBuffer.size());
-                    packet.getCaptureHeader().caplen(fragmentedIpBuffer.size());
-
-                    packet.scan(Ip4.ID);
-
-                    Ip4 ip = packet.getHeader(new Ip4());
-                    ip.checksum(ip.calculateChecksum());
-
-                    this.processPacket(packet);
-                    this.lastPacketTimestamp = packet.getCaptureHeader().timestampInMillis();
-                } catch (Exception ex) {
-                    Logger.getLogger(TransportLayerBufferHandler.class.getName()).log(Level.SEVERE, null, ex);
-                }
-            }
-        }
-        else {
-            PcapPacket packet = null;
-            try {
-                packet = (PcapPacket) buffer;
-                this.processPacket(packet);
-                this.lastPacketTimestamp = packet.getCaptureHeader().timestampInMillis();
-            } catch (Exception ex) {
-                //System.err.println(packet.toString());
-                Logger.getLogger(TransportLayerBufferHandler.class.getName()).log(Level.SEVERE, null, ex);
-            }
-        }
-    }
-    
-    public void processPacket(JPacket packet) throws Exception {
-        if(packet.hasHeader(Tcp.ID)) {
-            Tcp new_segment = packet.getHeader(new Tcp());
-            if(this.tcpBuffers.containsKey(new_segment.hashCode())) {
-                this.tcpBuffers.get(new_segment.hashCode()).addSegment(packet);
-            }
-            else {
-                TcpBuffer tcpBuffer = new TcpBuffer(packet, this.timeout, this);
+                TcpBuffer tcpBuffer = new TcpBuffer(ipv4Packet, this.timeout, this, captureTimestamp);
                 tcpBuffer.start();
-                this.tcpBuffers.put(tcpBuffer.hashCode(), tcpBuffer);
+                this.tcpBuffers.put(tcpBuffer.getHashCode(), tcpBuffer);
             }
         }
-        else if(packet.hasHeader(new Udp())) {
+        else if(ipv4Packet.contains(UdpPacket.class)) {
 
         }
     }
     
-    public void moveReadyTcpConnection(int hashCode) {
+    public void moveReadyTcpConnection(long hashCode) {
         synchronized(this.tcpBuffers) {
             TcpBuffer tcpBuffer = this.tcpBuffers.remove(hashCode);
             this.readyTcpBuffers.add(tcpBuffer);
@@ -147,11 +116,31 @@ public class TransportLayerBufferHandler implements IpReassemblyBufferHandler {
     public boolean isDeleteReadConnection() {
         return deleteReadConnection;
     }
+    
+    public boolean isFinishedReading() {
+        return this.ipV4Handler.isFinishedReading();
+    }
 
     /**
      * @param deleteReadConnection the deleteReadConnection to set
      */
     public void setDeleteReadConnection(boolean deleteReadConnection) {
         this.deleteReadConnection = deleteReadConnection;
+    }
+    
+    public void cleanupBuffers() {
+        synchronized(this.tcpBuffers) {
+            for(TcpBuffer tcpBuffer : this.tcpBuffers.values()) {
+                tcpBuffer.setTcpState(TcpState.TIMEOUT);
+            }
+        }
+    }
+    
+    public int getBufferSize() {
+        return this.tcpBuffers.size();
+    }
+    
+    public int getReadyBufferSize() {
+        return this.readyTcpBuffers.size();
     }
 }
