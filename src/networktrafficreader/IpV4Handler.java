@@ -25,11 +25,11 @@ public class IpV4Handler implements Runnable {
     private TransportLayerBufferHandler transportLayerHandler;
     private boolean done;
     
-    public IpV4Handler(long timeout) {
+    public IpV4Handler(long timeout, boolean deleteReadConnections) {
         this.timeout = timeout;
         this.ipv4Packets = new HashMap<Short, List<IpV4Packet>>();
         this.originalPackets = new HashMap<Short, List<Packet>>();
-        this.transportLayerHandler = new TransportLayerBufferHandler(this.timeout, true, this);
+        this.transportLayerHandler = new TransportLayerBufferHandler(this.timeout, deleteReadConnections, this);
         this.done = false;
     }
 
@@ -47,6 +47,9 @@ public class IpV4Handler implements Runnable {
     
     public void processPacket(Packet packet, Timestamp timestamp) {
         IpV4Packet ipv4Packet = (IpV4Packet) packet.getPayload();
+        if(ipv4Packet == null) {
+            return;
+        }
         IpV4Packet.IpV4Header ipv4Header = ipv4Packet.getHeader();
         
         if(!ipv4Header.getMoreFragmentFlag() && ipv4Header.getFragmentOffset() == 0) { // non-fragmented packets
@@ -97,12 +100,25 @@ public class IpV4Handler implements Runnable {
         if(!this.done) {
             return false;
         }
-        else if(this.transportLayerHandler.getBufferSize() <= 0 && this.transportLayerHandler.getReadyBufferSize() <= 0) {
-            return true;
+        
+        if(!this.transportLayerHandler.isDeleteReadConnection()) {
+            if(this.transportLayerHandler.getLastReadIndex() >= this.transportLayerHandler.getReadyBufferSize() && this.transportLayerHandler.getBufferSize() <= 0) {
+                return true;
+            }
+            else {
+                return false;
+            }
         }
         else {
-            return false;
+            if(this.transportLayerHandler.getBufferSize() <= 0 && this.transportLayerHandler.getReadyBufferSize() <= 0) {
+                return true;
+            }
+            else {
+                return false;
+            }
         }
+            
+        
     }
     
     public boolean isFinishedReading() {

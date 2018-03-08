@@ -42,7 +42,7 @@ public class TransportLayerBufferHandler {
         this.timeout = timeout;
         this.lastPacketTimestamp = Long.MAX_VALUE;
         this.deleteReadConnection = deleteReadConnection;
-        this.lastReadIndex = -1;
+        this.lastReadIndex = 0;
         this.ipV4Handler = ipv4Handler;
     }
     
@@ -92,7 +92,7 @@ public class TransportLayerBufferHandler {
             return this.readyTcpBuffers.size() > 0;
         }
         else {
-            return (this.lastReadIndex < this.readyTcpBuffers.size()) && (this.readyTcpBuffers.size() > 0);
+            return (this.getLastReadIndex() < this.readyTcpBuffers.size()) && (this.readyTcpBuffers.size() > 0);
         }
     }
     
@@ -103,7 +103,8 @@ public class TransportLayerBufferHandler {
                 return tcpBuffer;
             }
             else {
-                TcpBuffer tcpBuffer = this.readyTcpBuffers.get(this.lastReadIndex);
+                System.out.println(this.getLastReadIndex());
+                TcpBuffer tcpBuffer = this.readyTcpBuffers.get(this.getLastReadIndex());
                 this.lastReadIndex++;
                 return tcpBuffer;
             }
@@ -142,5 +143,17 @@ public class TransportLayerBufferHandler {
     
     public int getReadyBufferSize() {
         return this.readyTcpBuffers.size();
+    }
+    
+    
+    /**
+     * @return the lastReadIndex
+     */
+    public int getLastReadIndex() {
+        return lastReadIndex;
+    }
+    
+    public void resetLastReadIndex() {
+        this.lastReadIndex = 0;
     }
 }

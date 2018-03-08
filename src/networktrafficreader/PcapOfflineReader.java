@@ -10,6 +10,7 @@ import java.util.logging.Logger;
 import org.pcap4j.core.NotOpenException;
 import org.pcap4j.core.PcapNativeException;
 import org.pcap4j.core.Pcaps;
+import org.pcap4j.packet.IpV4Packet;
 import org.pcap4j.packet.Packet;
 
 /**
@@ -19,10 +20,10 @@ import org.pcap4j.packet.Packet;
 public class PcapOfflineReader extends PcapReaderInterface {
     private String pcapFilename;
     
-    public PcapOfflineReader(String pcapFilename, long timeout) throws PcapNativeException {
+    public PcapOfflineReader(String pcapFilename, long timeout, boolean deleteReadConnections) throws PcapNativeException {
         this.pcapFilename = pcapFilename;
         this.pcapHandle = Pcaps.openOffline(this.pcapFilename);
-        this.ipv4Handler = new IpV4Handler(timeout);
+        this.ipv4Handler = new IpV4Handler(timeout, deleteReadConnections);
         this.transportLayerHandler = this.ipv4Handler.getTransportLayerHandler();
     }
     
