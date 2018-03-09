@@ -84,7 +84,8 @@ public class TransportLayerBufferHandler {
     }
 
     public boolean isTimeout(long timestamp) {
-        return (timestamp - this.lastPacketTimestamp) > this.timeout;
+        //System.err.println("Time: " + timestamp + " - " + this.lastPacketTimestamp + " = " + (this.lastPacketTimestamp - timestamp));
+        return (this.lastPacketTimestamp - timestamp) > this.timeout;
     }
     
     public boolean hasReadyConnection() {
