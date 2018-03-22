@@ -7,6 +7,7 @@ package networktrafficreader;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.JOptionPane;
 import org.pcap4j.core.NotOpenException;
 import org.pcap4j.core.PcapNativeException;
 import org.pcap4j.core.Pcaps;
@@ -31,14 +32,15 @@ public class PcapOfflineReader extends PcapReaderInterface {
         try {
             Packet packet;
             
-            while((packet = this.pcapHandle.getNextPacket()) != null) {
+            while((packet = this.pcapHandle.getNextPacket()) != null && !this.ipv4Handler.isFinishedReading()) {
                 this.ipv4Handler.processPacket(packet, this.pcapHandle.getTimestamp());
                 
                 this.counter++;
             }
+            
+            this.ipv4Handler.setDone(true);
             this.getTransportLayerHandler().cleanupBuffers();
             Thread.sleep(100);
-            this.ipv4Handler.setDone(true);
         } 
         catch (NotOpenException ex) {
             Logger.getLogger(PcapOfflineReader.class.getName()).log(Level.SEVERE, null, ex);

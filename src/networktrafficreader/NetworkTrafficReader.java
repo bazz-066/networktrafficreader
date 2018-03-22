@@ -50,7 +50,7 @@ public class NetworkTrafficReader {
 //            t.join();
 //            poper.join();
 //            System.out.println("Done!");
-            PcapHandle pcap = Pcaps.openOffline("/media/baskoro/HD-LXU3/Datasets/UNSW/UNSW-NB15-Source-Files/UNSW-NB15-pcap-files/pcaps-22-1-2015/attack/22-1-2017-Exploits.pcap");
+            PcapHandle pcap = Pcaps.openOffline("/media/baskoro/HD-LXU3/Datasets/UNSW/UNSW-NB15-Source-Files/UNSW-NB15-pcap-files/pcaps-22-1-2015/normal/training-port-80.pcap");
             //PcapHandle pcap = Pcaps.openOffline("/home/baskoro/Documents/Doctoral/Research/neuralnetwork-java/libs/pcap4j/pcap4j-sample/src/main/resources/flagmentedEcho.pcap");
             IpV4Handler handler = new IpV4Handler(5000, true);
             MessagePoper poper = new MessagePoper(handler);
@@ -62,9 +62,10 @@ public class NetworkTrafficReader {
                 
                 counter++;
             }
+            handler.setDone(true);
             handler.getTransportLayerHandler().cleanupBuffers();
             Thread.sleep(100);
-            handler.setDone(true);
+            
             //packet.get(TcpPacket.TcpHeader);
             System.out.println("counter: " + counter);
         } catch (PcapNativeException ex) {

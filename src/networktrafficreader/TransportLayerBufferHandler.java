@@ -9,6 +9,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.jnetpcap.nio.JBuffer;
@@ -50,16 +51,19 @@ public class TransportLayerBufferHandler {
         this.lastPacketTimestamp = captureTimestamp.getTime();
         if(ipv4Packet.contains(TcpPacket.class)) {
             long[] hashes = TcpBuffer.calcHash(ipv4Packet);
-            if(this.tcpBuffers.containsKey(hashes[0])) {
-                this.tcpBuffers.get(hashes[0]).addSegment(ipv4Packet, captureTimestamp);
-            }
-            else if(this.tcpBuffers.containsKey(hashes[1])) {
-                this.tcpBuffers.get(hashes[1]).addSegment(ipv4Packet, captureTimestamp);
-            }
-            else {
-                TcpBuffer tcpBuffer = new TcpBuffer(ipv4Packet, this.timeout, this, captureTimestamp);
-                tcpBuffer.start();
-                this.tcpBuffers.put(tcpBuffer.getHashCode(), tcpBuffer);
+            synchronized(this.tcpBuffers) {
+                if(this.tcpBuffers.containsKey(hashes[0])) {
+                    this.tcpBuffers.get(hashes[0]).addSegment(ipv4Packet, captureTimestamp);
+                }
+                else if(this.tcpBuffers.containsKey(hashes[1])) {
+                    this.tcpBuffers.get(hashes[1]).addSegment(ipv4Packet, captureTimestamp);
+                }
+                else {
+                    TcpBuffer tcpBuffer = new TcpBuffer(ipv4Packet, this.timeout, this, captureTimestamp);
+                    tcpBuffer.start();
+
+                    this.tcpBuffers.put(tcpBuffer.getHashCode(), tcpBuffer);
+                }
             }
         }
         else if(ipv4Packet.contains(UdpPacket.class)) {
@@ -68,23 +72,16 @@ public class TransportLayerBufferHandler {
     }
     
     public void moveReadyTcpConnection(long hashCode) {
+        TcpBuffer tcpBuffer;
         synchronized(this.tcpBuffers) {
-            TcpBuffer tcpBuffer = this.tcpBuffers.remove(hashCode);
+            tcpBuffer = this.tcpBuffers.remove(hashCode);
+        }
+        synchronized(this.readyTcpBuffers) {
             this.readyTcpBuffers.add(tcpBuffer);
-            //System.out.println("move: " + tcpBuffer.getTcpPayload(true));
         }
     }
     
-    public void markAllConnectionReady() {
-        for(TcpBuffer tcpBuffer : this.tcpBuffers.values()) {
-            this.readyTcpBuffers.add(tcpBuffer);
-        }
-        
-        this.tcpBuffers.clear();
-    }
-
     public boolean isTimeout(long timestamp) {
-        //System.err.println("Time: " + timestamp + " - " + this.lastPacketTimestamp + " = " + (this.lastPacketTimestamp - timestamp));
         return (this.lastPacketTimestamp - timestamp) > this.timeout;
     }
     
@@ -104,7 +101,6 @@ public class TransportLayerBufferHandler {
                 return tcpBuffer;
             }
             else {
-                System.out.println(this.getLastReadIndex());
                 TcpBuffer tcpBuffer = this.readyTcpBuffers.get(this.getLastReadIndex());
                 this.lastReadIndex++;
                 return tcpBuffer;
@@ -131,10 +127,10 @@ public class TransportLayerBufferHandler {
     }
     
     public void cleanupBuffers() {
-        synchronized(this.tcpBuffers) {
-            for(TcpBuffer tcpBuffer : this.tcpBuffers.values()) {
-                tcpBuffer.setTcpState(TcpState.TIMEOUT);
-            }
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(TransportLayerBufferHandler.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
@@ -145,7 +141,6 @@ public class TransportLayerBufferHandler {
     public int getReadyBufferSize() {
         return this.readyTcpBuffers.size();
     }
-    
     
     /**
      * @return the lastReadIndex

@@ -26,6 +26,13 @@ import org.pcap4j.packet.TcpPacket;
  * @author baskoro
  */
 public class TcpBuffer extends Thread {
+
+    /**
+     * @return the tcpState
+     */
+    public TcpState getTcpState() {
+        return tcpState;
+    }
     private long timeout;
     private long hashCode;
     private int source;
@@ -100,10 +107,17 @@ public class TcpBuffer extends Thread {
     }
     
     public void run() {
-        while(this.tcpState != TcpState.TIME_WAIT && this.tcpState != TcpState.TIMEOUT && !this.bufferHandler.isFinishedReading()) {
+        while(true) {
             if(this.bufferHandler.isTimeout(this.actualStopTimestamp)) {
-                this.setTcpState(TcpState.TIMEOUT);
+                break;
             }
+            else if(this.getTcpState() == TcpState.TIME_WAIT) {
+                break;
+            }
+            else if(this.bufferHandler.isFinishedReading()) {
+                break;
+            }
+            
             try {
                 Thread.sleep(100);
             } catch (InterruptedException ex) {
@@ -119,9 +133,8 @@ public class TcpBuffer extends Thread {
         TcpPacket newSegment = (TcpPacket) ipv4Packet.getPayload();
         TcpPacket.TcpHeader tcpHeader = newSegment.getHeader();
         long actualTimestamp = captureTimestamp.getTime();
-        //System.err.println("+ " + new String(new_segment.getPayload()));
         
-        switch(this.tcpState) {
+        switch(this.getTcpState()) {
             case SYN_SENT:
                 if(tcpHeader.getSyn() && tcpHeader.getAck()) {
                     this.setTcpState(TcpState.SYN_RCVD);
