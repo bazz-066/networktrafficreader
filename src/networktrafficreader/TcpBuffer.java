@@ -5,6 +5,8 @@
  */
 package networktrafficreader;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.Inet4Address;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -53,7 +55,7 @@ public class TcpBuffer extends Thread {
         long[] hashes  = TcpBuffer.calcHash(ipv4Packet);
         
         // It should be impossible for an initial TCP segment to have SYN and ACK.
-        // The word behind buffer is meant to be the destination
+        // The word behind buffer variable is meant to be the destination
         if(tcpHeader.getSyn() && tcpHeader.getAck()) {
             this.source = tcpHeader.getDstPort().valueAsInt();
             this.tcpState = TcpState.SYN_RCVD;
@@ -206,6 +208,30 @@ public class TcpBuffer extends Thread {
         }
         
         return buffer.toString();
+    }
+    
+    public byte[] getBytesTcpPayload(boolean toServer) {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        if(toServer) {
+            for(TcpPacket segment : this.serverBuffer) {
+                Packet payload = segment.getPayload();
+                if(payload != null) {
+                    byte[] rawData = payload.getRawData();
+                    buffer.write(rawData, 0, rawData.length);
+                } 
+            }
+        }
+        else {
+            for(TcpPacket segment : this.clientBuffer) {
+                Packet payload = segment.getPayload();
+                if(payload != null) {
+                    byte[] rawData = payload.getRawData();
+                    buffer.write(rawData, 0, rawData.length);
+                } 
+            }
+        }
+        
+        return buffer.toByteArray();
     } 
     
     public int getNumberOfPackets(boolean toServer) {
