@@ -140,16 +140,18 @@ public class TcpBuffer extends Thread {
             case SYN_SENT:
                 if(tcpHeader.getSyn() && tcpHeader.getAck()) {
                     this.setTcpState(TcpState.SYN_RCVD);
-                    this.clientBuffer.add(newSegment);
-                    this.actualStopTimestamp = actualTimestamp;
+                    //this.clientBuffer.add(newSegment);
                 }
+                this.insertSegment(newSegment);
+                this.actualStopTimestamp = actualTimestamp;
                 break;
             case SYN_RCVD:
                 if(tcpHeader.getAck()) {
                     this.setTcpState(TcpState.ESTABLISHED);
-                    this.serverBuffer.add(newSegment);
-                    this.actualStopTimestamp = actualTimestamp;
+                    //this.serverBuffer.add(newSegment);
                 }
+                this.insertSegment(newSegment);
+                this.actualStopTimestamp = actualTimestamp;
                 break;
             case ESTABLISHED:
                 if(tcpHeader.getFin()) {
@@ -246,10 +248,10 @@ public class TcpBuffer extends Thread {
     private void insertSegment(TcpPacket newSegment) {
         TcpPacket.TcpHeader newTcpHeader = newSegment.getHeader();
         if(newTcpHeader.getSrcPort().valueAsInt() == this.source) { // to server
-            if(newTcpHeader.getSequenceNumber() > this.lastServerSeq) { // an in-order packet
+            if(newTcpHeader.getSequenceNumberAsLong() > this.lastServerSeq) { // an in-order packet
                 this.serverBuffer.add(newSegment);
-                this.lastServerSeq = newTcpHeader.getSequenceNumber();
-                this.lastServerAck = newTcpHeader.getAcknowledgmentNumber();
+                this.lastServerSeq = newTcpHeader.getSequenceNumberAsLong();
+                this.lastServerAck = newTcpHeader.getAcknowledgmentNumberAsLong();
             }
             else {
                 for(int i=this.serverBuffer.size()-1; i>=0; i--) {
@@ -257,14 +259,14 @@ public class TcpBuffer extends Thread {
                     TcpPacket.TcpHeader header = segment.getHeader();
                     int newSegmentPayloadLength = newSegment.getPayload() == null ? 0 : newSegment.getPayload().length();
                     int oldSegmentPayloadLength = segment.getPayload() == null ? 0 : segment.getPayload().length();
-                    if(header.getSequenceNumber() == newTcpHeader.getSequenceNumber() && oldSegmentPayloadLength == newSegmentPayloadLength) { //retransmitted packet
+                    if(header.getSequenceNumberAsLong()== newTcpHeader.getSequenceNumberAsLong()&& oldSegmentPayloadLength == newSegmentPayloadLength) { //retransmitted packet
                         break;
                     }
-                    else if(header.getSequenceNumber() == newTcpHeader.getSequenceNumber() && oldSegmentPayloadLength == newSegmentPayloadLength) {
+                    else if(header.getSequenceNumberAsLong()== newTcpHeader.getSequenceNumberAsLong()&& oldSegmentPayloadLength == newSegmentPayloadLength) {
                         this.serverBuffer.add(i+1, newSegment); 
                         break;
                     }
-                    else if(header.getSequenceNumber() < newTcpHeader.getSequenceNumber()) {
+                    else if(header.getSequenceNumberAsLong()< newTcpHeader.getSequenceNumberAsLong()) {
                         this.serverBuffer.add(i+1, newSegment);
                         break;
                     }
@@ -272,10 +274,10 @@ public class TcpBuffer extends Thread {
             }
         }
         else { // to client
-            if(newTcpHeader.getSequenceNumber() > this.lastClientSeq) { // an in-order packet
+            if((long)newTcpHeader.getSequenceNumberAsLong() > this.lastClientSeq) { // an in-order packet
                 this.clientBuffer.add(newSegment);
-                this.lastClientSeq = newTcpHeader.getSequenceNumber();
-                this.lastClientAck = newTcpHeader.getAcknowledgmentNumber();
+                this.lastClientSeq = newTcpHeader.getSequenceNumberAsLong();
+                this.lastClientAck = newTcpHeader.getAcknowledgmentNumberAsLong();
             }
             else {
                 for(int i=this.clientBuffer.size()-1; i>=0; i--) {
@@ -283,14 +285,14 @@ public class TcpBuffer extends Thread {
                     TcpPacket.TcpHeader header = segment.getHeader();
                     int newSegmentPayloadLength = newSegment.getPayload() == null ? 0 : newSegment.getPayload().length();
                     int oldSegmentPayloadLength = segment.getPayload() == null ? 0 : segment.getPayload().length();
-                    if(header.getSequenceNumber() == newTcpHeader.getSequenceNumber() && oldSegmentPayloadLength == newSegmentPayloadLength) { //retransmitted packet
+                    if(header.getSequenceNumberAsLong()== newTcpHeader.getSequenceNumberAsLong()&& oldSegmentPayloadLength == newSegmentPayloadLength) { //retransmitted packet
                         break;
                     }
-                    else if(header.getSequenceNumber() == newTcpHeader.getSequenceNumber() && oldSegmentPayloadLength == newSegmentPayloadLength) {
+                    else if(header.getSequenceNumberAsLong() == newTcpHeader.getSequenceNumberAsLong() && oldSegmentPayloadLength == newSegmentPayloadLength) {
                         this.clientBuffer.add(i+1, newSegment);
                         break;
                     }
-                    else if(header.getSequenceNumber() < newTcpHeader.getSequenceNumber()) {
+                    else if(header.getSequenceNumberAsLong() < newTcpHeader.getSequenceNumberAsLong()) {
                         this.clientBuffer.add(i+1, newSegment);
                         break;
                     }
